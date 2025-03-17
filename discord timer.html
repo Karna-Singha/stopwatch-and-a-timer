@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stopwatch & 3-Hour Timer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #f5f5f5;
+            height: 100vh;
+            justify-content: center;
+            gap: 40px;
+        }
+        .stopwatch, .timer-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .time-display {
+            font-size: 2em;
+            margin-bottom: 15px;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            transition: 0.2s;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+
+        .timer-wrapper {
+            position: relative;
+            width: 200px;
+            height: 200px;
+        }
+
+        .circular-progress {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(#28a745 0% 0%, #e0e0e0 0% 100%);
+            z-index: 1;
+            mask: radial-gradient(farthest-side, transparent calc(100% - 6px), black calc(100% - 5px));
+            -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), black calc(100% - 5px));
+        }
+        .timer {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5em;
+            z-index: 2;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Stopwatch -->
+    <div class="stopwatch">
+        <div class="time-display" id="stopwatch">00:00:00:00</div>
+        <div class="buttons">
+            <button id="playPauseBtn">Play</button>
+            <button id="resetBtn">Reset</button>
+        </div>
+    </div>
+
+    <!-- Timer with Circular Progress -->
+    <div class="timer-container">
+        <div class="timer-wrapper">
+            <div class="circular-progress" id="progressCircle"></div>
+            <div class="timer" id="timerDisplay">03:00:00</div>
+        </div>
+    </div>
+
+    <script>
+        let stopwatchInterval;
+        let timerInterval;
+        let isRunning = false;
+
+        let ms = 0, sec = 0, min = 0, hr = 0;
+
+        const TOTAL_TIME = 3 * 60 * 60;
+        let timerTime = TOTAL_TIME;
+
+        const stopwatchEl = document.getElementById('stopwatch');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const progressCircle = document.getElementById('progressCircle');
+
+        let resetClicks = [];
+        const RESET_CLICKS_NEEDED = 6;
+        const RESET_TIME_WINDOW = 30000;
+
+        function updateStopwatch() {
+            ms += 10;
+            if (ms >= 1000) {
+                ms = 0;
+                sec++;
+                if (sec >= 60) {
+                    sec = 0;
+                    min++;
+                    if (min >= 60) {
+                        min = 0;
+                        hr++;
+                    }
+                }
+            }
+            stopwatchEl.textContent = `${pad(hr)}:${pad(min)}:${pad(sec)}:${padMs(ms)}`;
+        }
+
+        function updateTimer() {
+            if (timerTime > 0) {
+                timerTime--;
+                updateTimerDisplay();
+                updateProgress();
+            } else {
+                stopAll();
+            }
+        }
+
+        function updateTimerDisplay() {
+            const hours = Math.floor(timerTime / 3600);
+            const minutes = Math.floor((timerTime % 3600) / 60);
+            const seconds = timerTime % 60;
+            timerDisplay.textContent = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+        }
+
+        function updateProgress() {
+            const percent = ((TOTAL_TIME - timerTime) / TOTAL_TIME) * 100;
+            progressCircle.style.background = `conic-gradient(#28a745 ${percent}%, #e0e0e0 ${percent}%)`;
+        }
+
+        function pad(n) {
+            return n.toString().padStart(2, '0');
+        }
+
+        function padMs(n) {
+            return Math.floor(n / 10).toString().padStart(2, '0');
+        }
+
+        function stopAll() {
+            clearInterval(stopwatchInterval);
+            clearInterval(timerInterval);
+            isRunning = false;
+            playPauseBtn.textContent = 'Play';
+        }
+
+        playPauseBtn.addEventListener('click', () => {
+            if (!isRunning) {
+                stopwatchInterval = setInterval(updateStopwatch, 10);
+                timerInterval = setInterval(updateTimer, 1000);
+                isRunning = true;
+                playPauseBtn.textContent = 'Pause';
+            } else {
+                stopAll();
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            const now = Date.now();
+            resetClicks.push(now);
+            resetClicks = resetClicks.filter(clickTime => now - clickTime <= RESET_TIME_WINDOW);
+
+            if (resetClicks.length >= RESET_CLICKS_NEEDED) {
+                stopAll();
+                ms = sec = min = hr = 0;
+                timerTime = TOTAL_TIME;
+                updateStopwatch();
+                updateTimerDisplay();
+                updateProgress();
+                resetClicks = [];
+            }
+        });
+
+        updateStopwatch();
+        updateTimerDisplay();
+        updateProgress();
+
+        // Auto start on page load
+        window.addEventListener('load', () => {
+            stopwatchInterval = setInterval(updateStopwatch, 10);
+            timerInterval = setInterval(updateTimer, 1000);
+            isRunning = true;
+            playPauseBtn.textContent = 'Pause';
+        });
+
+        // Auto reset on page unload
+        window.addEventListener('beforeunload', () => {
+            stopAll();
+            ms = sec = min = hr = 0;
+            timerTime = TOTAL_TIME;
+            updateStopwatch();
+            updateTimerDisplay();
+            updateProgress();
+        });
+    </script>
+</body>
+</html>
